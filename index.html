@@ -3,13 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <title>📓 Live Class Notes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <style>
 body{font-family:'Segoe UI',sans-serif;margin:0;background:#f0f4f8;color:#333;}
 header{background:#1f2d3d;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 5px rgba(0,0,0,0.2);}
 header .title{font-size:24px;font-weight:bold;}
 .container{max-width:1000px;margin:20px auto;padding:0 20px;}
 #toolbar{display:none;flex-wrap:wrap;gap:6px;margin-bottom:12px;background:#e0e7ff;padding:10px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.1);}
-button{background:#4f46e5;color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;transition:0.2s;}
+button{background:#4f46e5;color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;transition:0.2s;font-size:16px;}
 button:hover{background:#3730a3;}
 button.ghost{background:transparent;color:#4f46e5;border:1px solid #c7d2fe;}
 #editor{background:#fff;padding:18px;border-radius:12px;min-height:450px;box-shadow:0 4px 12px rgba(0,0,0,0.1);overflow:auto;font-size:18px;line-height:1.5;white-space:pre-wrap;}
@@ -19,9 +24,18 @@ footer{text-align:center;font-size:14px;color:#555;margin:20px 0;}
 input[type=password]{width:100%;padding:10px;margin-top:10px;border-radius:6px;border:1px solid #ccc;font-size:16px;}
 .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
 #status{font-size:14px;color:#d1d5db;}
+/* Mobile friendly */
+@media (max-width:600px){
+  body{font-size:16px;}
+  #editor{font-size:20px;padding:12px;}
+  #toolbar{flex-wrap:wrap;gap:4px;padding:6px;}
+  button{padding:6px 10px;font-size:16px;}
+  header .title{font-size:20px;}
+}
 </style>
 </head>
 <body>
+
 <header>
 <div class="title">📓 Live Class Notes</div>
 <div id="status">Ready</div>
@@ -81,61 +95,78 @@ input[type=password]{width:100%;padding:10px;margin-top:10px;border-radius:6px;b
 </div>
 
 <script>
-// Variables
-const editor=document.getElementById('editor');
-const toolbar=document.getElementById('toolbar');
-let isTeacher=false;
-const TEACHER_PASSWORD="raheimp100classstarts";
+// === Firebase config ===
+const firebaseConfig = {
+  apiKey: "AIzaSyCjivkTeBcbr-UnnkfMbIYX7_9Wxya5U04",
+  authDomain: "raheim-s-class.firebaseapp.com",
+  databaseURL: "https://raheim-s-class-default-rtdb.firebaseio.com",
+  projectId: "raheim-s-class",
+  storageBucket: "raheim-s-class.firebasestorage.app",
+  messagingSenderId: "576992270609",
+  appId: "1:576992270609:web:7441555f9299b8d42bd4b0",
+  measurementId: "G-MQZ68MPYH3"
+};
 
-// Load saved notes from localStorage
-function loadNotes(){
-  const saved=localStorage.getItem('liveNotes');
-  if(saved) editor.innerHTML=saved;
-}
-loadNotes();
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-// Toolbar buttons (insert symbols as plain text)
+// === Variables ===
+const editor = document.getElementById('editor');
+const toolbar = document.getElementById('toolbar');
+let isTeacher = false;
+const TEACHER_PASSWORD = "raheimp100classstarts";
+
+// === Load notes from Firebase for students ===
+db.ref('notes').on('value', (snapshot)=>{
+  if(!isTeacher){
+    const data = snapshot.val();
+    if(data && data.content !== undefined){
+      editor.innerHTML = data.content;
+    }
+  }
+});
+
+// === Toolbar buttons ===
 toolbar.querySelectorAll("button[data-symbol]").forEach(btn=>{
   btn.onclick=()=>{
     if(!isTeacher) return;
-    const symbol=btn.getAttribute("data-symbol");
+    const symbol = btn.getAttribute("data-symbol");
     editor.innerHTML += symbol;
-    localStorage.setItem('liveNotes', editor.innerHTML);
+    db.ref('notes').set({ content: editor.innerHTML });
   };
 });
 
-// Clear notes
+// Clear button
 document.getElementById("btnClear").onclick=()=>{
-  if(isTeacher){editor.innerHTML=""; localStorage.setItem('liveNotes','');}
+  if(isTeacher){
+    editor.innerHTML="";
+    db.ref('notes').set({ content: "" });
+  }
 };
 
-// Role modal
-const roleModal=document.getElementById("roleModal");
-document.getElementById("btnTeacher").onclick=()=>{document.getElementById("pwBlock").style.display="block";}
-document.getElementById("btnCancel").onclick=()=>{document.getElementById("pwBlock").style.display="none";}
-document.getElementById("btnEnter").onclick=()=>{
-  const pw=document.getElementById("pwInput").value;
-  if(pw===TEACHER_PASSWORD){
-    isTeacher=true;
+// === Role modal ===
+const roleModal = document.getElementById("roleModal");
+document.getElementById("btnTeacher").onclick = ()=>{ document.getElementById("pwBlock").style.display="block"; }
+document.getElementById("btnCancel").onclick = ()=>{ document.getElementById("pwBlock").style.display="none"; }
+document.getElementById("btnEnter").onclick = ()=>{
+  const pw = document.getElementById("pwInput").value;
+  if(pw === TEACHER_PASSWORD){
+    isTeacher = true;
     toolbar.style.display="flex";
     editor.contentEditable="true";
     roleModal.style.display="none";
     editor.innerHTML="<p>Start typing your notes...</p>";
-  }else{alert("Wrong password");}
+    db.ref('notes').set({ content: editor.innerHTML });
+  } else { alert("Wrong password"); }
 };
-document.getElementById("btnStudent").onclick=()=>{
-  isTeacher=false;
+document.getElementById("btnStudent").onclick = ()=>{
+  isTeacher = false;
   editor.contentEditable="false";
   toolbar.style.display="none";
   roleModal.style.display="none";
 };
-
-// Auto-reload every 2 seconds for students
-setInterval(()=>{
-  if(!isTeacher){
-    loadNotes();
-  }
-},2000);
 </script>
+
 </body>
 </html>
